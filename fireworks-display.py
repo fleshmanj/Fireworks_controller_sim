@@ -1,6 +1,7 @@
 import pygame
 import random
 import math
+import PySimpleGUI as sg
 from firework import Firework, Particle
 from firework_controller import FireworkController
 
@@ -19,42 +20,44 @@ BLACK = (0, 0, 0)
 launch_interval = 0.3  # Time interval between launching each firework (in seconds)
 explosion_duration = 5  # Duration of the firework explosion (in seconds)
 
-
 # Firework Controller
 controller = FireworkController()
 
+# Initialize PySimpleGUI
+sg.theme("DefaultNoMoreNagging")
 
-# Function to create a random firework
-def create_random_firework():
-    identifier = len(controller.fireworks) + 1
-    position = (random.randint(200, screen_width - 200), random.randint(200, math.floor(screen_height/2) - 200))
-    color = (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
-    radius = random.randint(3, 5)  # Random radius for the firework
-    firework = Firework(identifier, position, color, radius)
+# Define the layout of the UI
+layout = [
+    [sg.Text("Firework Configuration")],
+    [sg.Text("Position (x, y):"), sg.Input(key="-POSITION-")],
+    [sg.Text("Color (R, G, B):"), sg.Input(key="-COLOR-")],
+    [sg.Text("Radius:"), sg.Input(key="-RADIUS-")],
+    [sg.Button("Add Firework", key="-ADD-")],
+    [sg.Button("Start Sequence", key="-START-")]
+]
 
-    # Set initial velocity for firework particles
-    for particle in firework.particles:
-        angle = random.uniform(0, 2 * math.pi)
-        speed = random.uniform(1, 5)
-        particle.velocity = [speed * math.cos(angle), -speed * math.sin(angle)]
+# Create the window
+window = sg.Window("Fireworks Display", layout)
 
-    controller.add_firework(firework)
-    print(f"Firework {firework.identifier} created at position {firework.position}")
-
+# List to store the queued fireworks configurations
+fireworks_queue = []
 
 # Game loop
 running = True
 while running:
-    number_of_fireworks = random.randrange(1, 4)  # Number of fireworks to launch at the start of the program
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
     screen.fill(BLACK)
 
-    if len(controller.fireworks) == 0:
-        for i in range(0, number_of_fireworks):
-            create_random_firework()
+    # Create random fireworks at specified interval
+    if pygame.time.get_ticks() % int(launch_interval * 1000) == 0:
+        if fireworks_queue:
+            config = fireworks_queue.pop(0)
+            firework = Firework(len(controller.fireworks) + 1, config["position"], config["color"], config["radius"])
+            controller.add_firework(firework)
+            print(f"Firework {firework.identifier} created at position {firework.position}")
 
     # Update and draw fireworks
     for firework in controller.fireworks:
@@ -78,7 +81,30 @@ while running:
         # Draw firework and particles
         firework.draw(screen)
 
+    # Update the Pygame display
     pygame.display.flip()
     clock.tick(60)
 
+    # Process the UI events
+    event, values = window.read(timeout=0)
+    if event == "-ADD-":
+        try:
+            position = tuple(map(int, values["-POSITION-"].split(",")))
+            color = tuple(map(int, values["-COLOR-"].split(",")))
+            radius = int(values["-RADIUS-"])
+            fireworks_queue.append({"position": position, "color": color, "radius": radius})
+            print(f"Firework added to queue: {position}, {color}, {radius}")
+        except ValueError:
+            print("Invalid configuration. Please enter valid values.")
+    elif event == "-START-":
+        if fireworks_queue:
+            print("Fireworks sequence started.")
+        else:
+            print("No fireworks in the queue.")
+
+    if event == sg.WINDOW_CLOSED:
+        break
+
+# Close the Pygame display and the UI window
 pygame.quit()
+window.close()
